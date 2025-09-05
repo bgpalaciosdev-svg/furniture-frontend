@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Minus, X, Upload, Save, ArrowLeft, Eye } from "lucide-react";
+import { Plus, X, Save, ArrowLeft, Eye } from "lucide-react";
 
 // Product interface matching the existing product structure
 interface ProductFormData {

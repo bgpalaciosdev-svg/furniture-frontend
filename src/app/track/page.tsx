@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -10,12 +10,10 @@ import {
   CheckCircle,
   Truck,
   XCircle,
-  Calendar,
   MapPin,
   CreditCard,
   Phone,
   Mail,
-  ArrowRight,
   Home,
   ShoppingBag,
 } from "lucide-react";
@@ -490,7 +488,7 @@ export default function OrderTrackingPage() {
                     <div className="flex items-center justify-between">
                       {Object.entries(statusConfig)
                         .filter(([key]) => key !== "cancelled")
-                        .map(([key, config], index) => {
+                        .map(([key, config]) => {
                           const isCompleted =
                             key === "pending" ||
                             (key === "processing" &&

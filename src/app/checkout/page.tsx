@@ -49,17 +49,17 @@ const CheckoutPage = () => {
     country: "United States",
   });
 
-  const [billingInfo, setBillingInfo] = useState<BillingInfo>({
-    sameAsShipping: true,
-    firstName: "",
-    lastName: "",
-    address: "",
-    apartment: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    country: "United States",
-  });
+  // const [billingInfo, setBillingInfo] = useState<BillingInfo>({
+  //   sameAsShipping: true,
+  //   firstName: "",
+  //   lastName: "",
+  //   address: "",
+  //   apartment: "",
+  //   city: "",
+  //   state: "",
+  //   zipCode: "",
+  //   country: "United States",
+  // });
 
   const [errors, setErrors] = useState<Partial<ShippingInfo>>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -82,12 +82,12 @@ const CheckoutPage = () => {
     }
   };
 
-  const handleBillingChange = (
-    field: keyof BillingInfo,
-    value: string | boolean
-  ) => {
-    setBillingInfo((prev) => ({ ...prev, [field]: value }));
-  };
+  // const handleBillingChange = (
+  //   field: keyof BillingInfo,
+  //   value: string | boolean
+  // ) => {
+  //   setBillingInfo((prev) => ({ ...prev, [field]: value }));
+  // };
 
   const validateForm = (): boolean => {
     const newErrors: Partial<ShippingInfo> = {};

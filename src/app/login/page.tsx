@@ -82,6 +82,7 @@ const LoginPage = () => {
       setErrors({
         general: "An error occurred. Please try again later.",
       });
+      console.error(error);
     } finally {
       setIsLoading(false);
     }

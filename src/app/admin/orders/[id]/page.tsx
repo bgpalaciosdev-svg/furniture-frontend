@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Package,
@@ -173,7 +173,6 @@ const paymentStatusConfig = {
 
 export default function OrderDetailsPage() {
   const params = useParams();
-  const router = useRouter();
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -234,7 +233,7 @@ export default function OrderDetailsPage() {
                 Order Not Found
               </h1>
               <p className="text-gray-600 mb-6">
-                The order with ID "{orderId}" could not be found.
+                The order with ID &quot;{orderId}&quot; could not be found.
               </p>
               <Link
                 href="/admin/orders"

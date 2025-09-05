@@ -67,14 +67,14 @@ export const cartService = {
   /**
    * Remove item from cart
    */
-  removeFromCart: async (itemId: string, token: string): Promise<ApiResponse<any>> => {
+  removeFromCart: async (itemId: string, token: string): Promise<ApiResponse<unknown>> => {
     return apiService.delete(API_ENDPOINTS.CART.REMOVE, token);
   },
 
   /**
    * Clear entire cart
    */
-  clearCart: async (token: string): Promise<ApiResponse<any>> => {
+  clearCart: async (token: string): Promise<ApiResponse<unknown>> => {
     return apiService.delete(API_ENDPOINTS.CART.CLEAR, token);
   },
 

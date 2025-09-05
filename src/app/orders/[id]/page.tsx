@@ -11,8 +11,6 @@ import {
   CheckCircle,
   Truck,
   XCircle,
-  Calendar,
-  DollarSign,
   MapPin,
   CreditCard,
   Phone,
@@ -300,7 +298,7 @@ export default function CustomerOrderDetailsPage() {
             <div className="flex items-center justify-between">
               {Object.entries(statusConfig)
                 .filter(([key]) => key !== "cancelled")
-                .map(([key, config], index) => {
+                .map(([key, config]) => {
                   const isCompleted =
                     key === "pending" ||
                     (key === "processing" &&

@@ -90,7 +90,7 @@ const sampleProducts: Product[] = [
 ];
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(sampleProducts);
+  const [products,] = useState<Product[]>(sampleProducts);
   const [filteredProducts, setFilteredProducts] =
     useState<Product[]>(sampleProducts);
   const [sortBy, setSortBy] = useState<string>("new");

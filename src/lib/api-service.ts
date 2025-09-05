@@ -3,7 +3,7 @@ import { API_CONFIG, buildApiUrl, getApiHeaders } from './api-config';
 /**
  * API Response Types
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -13,7 +13,7 @@ export interface ApiResponse<T = any> {
 export interface ApiError {
   message: string;
   status: number;
-  data?: any;
+  data?: unknown;
 }
 
 /**
@@ -21,9 +21,9 @@ export interface ApiError {
  */
 export class ApiException extends Error {
   status: number;
-  data?: any;
+  data?: unknown;
 
-  constructor(message: string, status: number, data?: any) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = 'ApiException';
     this.status = status;
@@ -42,7 +42,7 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface RequestOptions {
   method?: HttpMethod;
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
   token?: string;
   timeout?: number;
 }
@@ -50,7 +50,7 @@ export interface RequestOptions {
 /**
  * Core API request function
  */
-const apiRequest = async <T = any>(
+const apiRequest = async <T = unknown>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> => {
@@ -144,16 +144,16 @@ export const apiService = {
   /**
    * GET request
    */
-  get: <T = any>(endpoint: string, token?: string): Promise<ApiResponse<T>> => {
+  get: <T = unknown>(endpoint: string, token?: string): Promise<ApiResponse<T>> => {
     return apiRequest<T>(endpoint, { method: 'GET', token });
   },
 
   /**
    * POST request
    */
-  post: <T = any>(
+  post: <T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     token?: string
   ): Promise<ApiResponse<T>> => {
     return apiRequest<T>(endpoint, {
@@ -166,9 +166,9 @@ export const apiService = {
   /**
    * PUT request
    */
-  put: <T = any>(
+  put: <T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     token?: string
   ): Promise<ApiResponse<T>> => {
     return apiRequest<T>(endpoint, {
@@ -181,9 +181,9 @@ export const apiService = {
   /**
    * PATCH request
    */
-  patch: <T = any>(
+  patch: <T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     token?: string
   ): Promise<ApiResponse<T>> => {
     return apiRequest<T>(endpoint, {
@@ -196,14 +196,14 @@ export const apiService = {
   /**
    * DELETE request
    */
-  delete: <T = any>(endpoint: string, token?: string): Promise<ApiResponse<T>> => {
+  delete: <T = unknown>(endpoint: string, token?: string): Promise<ApiResponse<T>> => {
     return apiRequest<T>(endpoint, { method: 'DELETE', token });
   },
 
   /**
    * Upload file(s)
    */
-  upload: <T = any>(
+  upload: <T = unknown>(
     endpoint: string,
     formData: FormData,
     token?: string
@@ -218,7 +218,7 @@ export const apiService = {
   /**
    * Request with custom options
    */
-  request: <T = any>(
+  request: <T = unknown>(
     endpoint: string,
     options: RequestOptions
   ): Promise<ApiResponse<T>> => {

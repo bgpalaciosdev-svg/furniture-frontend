@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Image from "next/image";
 
 interface Category {
   id: string;
@@ -115,9 +116,11 @@ const CategorySlider = () => {
             >
               {/* Image Container */}
               <div className="relative overflow-hidden mb-6">
-                <img
+                <Image
                   src={category.image}
                   alt={category.title}
+                  width={800}
+                  height={320}
                   className="w-full h-80 object-cover transition-transform duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-black/20 group-hover:opacity-10 transition-all duration-300" />
