@@ -45,15 +45,15 @@ const FeaturedProducts = () => {
           {featuredItems.map((item) => (
             <div key={item.id} className="group cursor-pointer">
               {/* Tall Image */}
-              <div className="relative overflow-hidden mb-6">
+              <div className="relative overflow-hidden mb-6 h-96 md:h-[500px]">
                 <Image
                   src={item.image}
                   alt={item.title}
-                  width={400}
-                  height={500}
-                  className="w-full h-96 md:h-[500px] object-cover transition-transform duration-700 group-hover:scale-105"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300" />
+                <div className="absolute inset-0 bg-black/0 group-hover:opacity-10 transition-all duration-300" />
               </div>
 
               {/* Title */}

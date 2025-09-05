@@ -263,11 +263,12 @@ export default function ContentManagementPage() {
                         src={content.hero.backgroundImage}
                         alt="Hero background preview"
                         fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
                         className="object-cover"
                         onError={() => {}}
                       />
                     )}
-                    <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                       <div className="text-center text-white">
                         <h3 className="text-xl font-light tracking-wider mb-3">
                           {content.hero.title}
@@ -375,11 +376,12 @@ export default function ContentManagementPage() {
                         src={content.saleSection.backgroundImage}
                         alt="Sale section background preview"
                         fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
                         className="object-cover"
                         onError={() => {}}
                       />
                     )}
-                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                       <div className="text-center text-white">
                         <h3 className="text-2xl font-light tracking-wider mb-3">
                           {content.saleSection.title}
@@ -410,11 +412,12 @@ export default function ContentManagementPage() {
                     src={content.hero.backgroundImage}
                     alt="Hero background preview"
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover"
                     onError={() => {}}
                   />
                 )}
-                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                   <div className="text-center text-white">
                     <h1 className="text-4xl md:text-6xl font-light tracking-[0.2em] mb-8">
                       {content.hero.title}
@@ -444,7 +447,7 @@ export default function ContentManagementPage() {
                     onError={() => {}}
                   />
                 )}
-                <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                   <div className="text-center text-white">
                     <h2 className="text-4xl md:text-6xl lg:text-7xl font-light tracking-[0.3em] mb-8">
                       {content.saleSection.title}

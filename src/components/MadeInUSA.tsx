@@ -31,7 +31,7 @@ const MadeInUSA = () => {
 
       {/* Decorative Elements */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-        <div className="w-px h-16 bg-white bg-opacity-50"></div>
+        <div className="w-px h-16 bg-white/50"></div>
       </div>
     </section>
   );

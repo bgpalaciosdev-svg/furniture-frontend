@@ -120,7 +120,7 @@ const CategorySlider = () => {
                   alt={category.title}
                   className="w-full h-80 object-cover transition-transform duration-700 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300" />
+                <div className="absolute inset-0 bg-black/20 group-hover:opacity-10 transition-all duration-300" />
               </div>
 
               {/* Content */}
