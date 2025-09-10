@@ -92,11 +92,16 @@ const ProductFilter = ({
   ];
 
   const categoryOptions = [
-    { value: "console", label: "Console Tables" },
-    { value: "table", label: "Dining Tables" },
-    { value: "chair", label: "Chairs" },
-    { value: "bench", label: "Benches" },
-    { value: "storage", label: "Storage" },
+    { value: "living-room", label: "Living Room" },
+    { value: "dining-room", label: "Dining Room" },
+    { value: "bedroom", label: "Bedroom" },
+    { value: "office", label: "Office" },
+    { value: "entry-and-decor", label: "Entry & Decor" },
+    // { value: "console", label: "Console Tables" },
+    // { value: "table", label: "Dining Tables" },
+    // { value: "chair", label: "Chairs" },
+    // { value: "bench", label: "Benches" },
+    // { value: "storage", label: "Storage" },
   ];
 
   const featureOptions = [
