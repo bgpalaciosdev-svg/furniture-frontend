@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Search,
   User,
@@ -17,27 +18,37 @@ const Navbar = () => {
   const { getTotalItems } = useCart();
   const cartItemCount = getTotalItems();
 
+  // const mainNavItems = [
+  //   { name: "ALL PRODUCTS", href: "/products" },
+  //   { name: "SHOP BY CATEGORY", href: "#" },
+  //   { name: "ROOMS", href: "#" },
+  //   { name: "MADE TO ORDER", href: "#" },
+  //   { name: "VILLA TEXTILES & RUGS", href: "#" },
+  //   { name: "IN STOCK", href: "#" },
+  // ];
   const mainNavItems = [
-    { name: "ALL PRODUCTS", href: "/products" },
-    { name: "SHOP BY CATEGORY", href: "#" },
-    { name: "ROOMS", href: "#" },
-    { name: "MADE TO ORDER", href: "#" },
-    { name: "VILLA TEXTILES & RUGS", href: "#" },
-    { name: "IN STOCK", href: "#" },
+    { name: "", href: "#" },
+    // { name: "TEST1", href: "#" },
+    // { name: "TEST2", href: "#" },
+    // { name: "TEST3", href: "#" },
   ];
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-white border-b border-gray-200 shadow-sm">
       {/* Top Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 py-2">
             <Link
               href="/"
-              className="text-2xl font-light tracking-wider text-gray-900 hover:text-gray-700 transition-colors"
+              className="flex items-center hover:opacity-80 transition-opacity duration-200"
             >
-              CLASSIC HOME
+              <img
+                src="/furniture/logo.svg"
+                alt="PALACIOS HOME"
+                className="h-14 w-auto object-contain"
+              />
             </Link>
           </div>
 
@@ -60,40 +71,47 @@ const Navbar = () => {
           {/* Right Side Actions */}
           <div className="flex items-center space-x-6">
             {/* Admin Panel */}
-            <Link
+            {/* <Link
               href="/admin/content"
               className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors"
             >
               <Settings className="h-4 w-4 mr-1" />
               Admin
-            </Link>
+            </Link> */}
+            {/* <Link 
+              href="#"
+              className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors"
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              Test1
+            </Link> */}
 
             {/* Track Order */}
-            <Link
+            {/* <Link
               href="/track"
               className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors"
             >
               <Package className="h-4 w-4 mr-1" />
               Track Order
-            </Link>
+            </Link> */}
 
             {/* Become A Member */}
-            <button className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors">
+            {/* <button className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors">
               <Plus className="h-4 w-4 mr-1" />
               Become A Member
-            </button>
+            </button> */}
 
             {/* Sign In */}
-            <Link
+            {/* <Link
               href="/login"
               className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors"
             >
               <User className="h-4 w-4 mr-1" />
               Sign In
-            </Link>
+            </Link> */}
 
             {/* Cart */}
-            <Link
+            {/* <Link
               href="/cart"
               className="flex items-center text-sm text-gray-700 hover:text-gray-900 transition-colors relative"
             >
@@ -104,7 +122,7 @@ const Navbar = () => {
                   {cartItemCount > 99 ? "99+" : cartItemCount}
                 </span>
               )}
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>
