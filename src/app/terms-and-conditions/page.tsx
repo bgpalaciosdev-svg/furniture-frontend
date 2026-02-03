@@ -101,6 +101,18 @@ export default function TermsAndConditions() {
                 Palacios Home Co reserves the right to modify these Terms & Conditions at any time without prior notice. Updated terms will apply to all purchases made after the revision date.
               </p>
             </section>
+
+            <section>
+              <h2 className="text-2xl font-light tracking-wide text-gray-900 mb-3">
+                11. Cancellation & Refund Policy
+              </h2>
+              <p className="text-lg text-gray-700 leading-relaxed">
+                Any canceled or refunded order is subject to a 30% restocking/cancellation fee based on the total purchase price. This fee covers processing, handling, and administrative costs. The remaining balance will be refunded to the original form of payment.
+              </p>
+              <p className="text-lg text-gray-700 leading-relaxed mt-4">
+                Once an order has been processed or scheduled for delivery, it cannot be canceled without this fee.
+              </p>
+            </section>
           </div>
         </div>
       </div>

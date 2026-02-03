@@ -615,6 +615,9 @@ const CheckoutPage = () => {
               <p className="text-sm text-blue-700">
                 Free delivery for orders over $1,000 within 5-10 miles
               </p>
+              <p className="text-sm text-blue-700 mt-2">
+                Any canceled or refunded order is subject to a 30% restocking/cancellation fee based on the total purchase price
+              </p>
             </div>
           </div>
         </div>
