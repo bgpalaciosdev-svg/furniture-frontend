@@ -60,7 +60,7 @@ export const authService = {
   /**
    * Logout user
    */
-  logout: async (token: string): Promise<ApiResponse<any>> => {
+  logout: async (token: string): Promise<ApiResponse<unknown>> => {
     return apiService.post(API_ENDPOINTS.AUTH.LOGOUT, {}, token);
   },
 
@@ -81,14 +81,14 @@ export const authService = {
   /**
    * Forgot password
    */
-  forgotPassword: async (data: ForgotPasswordRequest): Promise<ApiResponse<any>> => {
+  forgotPassword: async (data: ForgotPasswordRequest): Promise<ApiResponse<unknown>> => {
     return apiService.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, data);
   },
 
   /**
    * Reset password
    */
-  resetPassword: async (data: ResetPasswordRequest): Promise<ApiResponse<any>> => {
+  resetPassword: async (data: ResetPasswordRequest): Promise<ApiResponse<unknown>> => {
     return apiService.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data);
   },
 };

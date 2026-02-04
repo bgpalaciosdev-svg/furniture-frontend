@@ -4,6 +4,9 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "@/contexts/CartContext";
+import { QueryProvider } from "@/providers/QueryProvider";
+import { ToastProvider } from "@/contexts/ToastContext";
+import { AdminProvider } from "@/contexts/AdminContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,9 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Classic Home - Furniture & Home Decor",
+  title: "PALACIOS HOME - Premium Furniture & Home Decor",
   description:
-    "Discover premium furniture and home decor at Classic Home. Shop by category, rooms, and custom made-to-order pieces.",
+    "Discover curated furniture collections for living rooms, dining rooms, bedrooms, and offices. Elevate your home with timeless design, refined comfort, and sophisticated style.",
 };
 
 export default function RootLayout({
@@ -31,11 +34,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <CartProvider>
-          <Navbar />
-          {children}
-          <Footer />
-        </CartProvider>
+        <QueryProvider>
+          <AdminProvider>
+            <CartProvider>
+              <ToastProvider>
+                <Navbar />
+                {children}
+                <Footer />
+              </ToastProvider>
+            </CartProvider>
+          </AdminProvider>
+        </QueryProvider>
       </body>
     </html>
   );

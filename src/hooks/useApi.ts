@@ -9,17 +9,17 @@ export interface UseApiState<T> {
   error: string | null;
 }
 
-export interface UseApiReturn<T> extends UseApiState<T> {
-  execute: (...args: any[]) => Promise<T | null>;
+export interface UseApiReturn<T, TArgs extends unknown[] = unknown[]> extends UseApiState<T> {
+  execute: (...args: TArgs) => Promise<T | null>;
   reset: () => void;
 }
 
 /**
  * Custom hook for handling API calls with loading states
  */
-export function useApi<T = any>(
-  apiFunction: (...args: any[]) => Promise<ApiResponse<T>>
-): UseApiReturn<T> {
+export function useApi<T = unknown, TArgs extends unknown[] = unknown[]>(
+  apiFunction: (...args: TArgs) => Promise<ApiResponse<T>>
+): UseApiReturn<T, TArgs> {
   const [state, setState] = useState<UseApiState<T>>({
     data: null,
     loading: false,
@@ -27,7 +27,7 @@ export function useApi<T = any>(
   });
 
   const execute = useCallback(
-    async (...args: any[]): Promise<T | null> => {
+    async (...args: TArgs): Promise<T | null> => {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
       try {

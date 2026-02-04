@@ -1,11 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { CheckCircle, Truck, Calendar, CreditCard } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import OrderService from "@/services/order.service";
+import { formatCurrency } from "@/lib/currency-utils";
 
-// Mock order data - in a real app, this would come from the backend
+// Product image interface
+interface ProductImage {
+  url: string;
+  alt?: string;
+  is_primary?: boolean;
+}
+
+// Product variant interface
+interface ProductVariant {
+  _id?: string;
+  id?: string;
+  sku: string;
+  images?: ProductImage[];
+  name?: string;
+  price?: number;
+  stock?: number;
+}
+
+// Populated product interface (when product_id is populated)
+interface PopulatedProduct {
+  _id?: string;
+  id?: string;
+  sku?: string;
+  name?: string;
+  description?: string;
+  price?: number;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
+  category_ids?: string[];
+}
+
+// Backend order item interface
+interface BackendOrderItem {
+  product_id: PopulatedProduct | string;
+  variant_id?: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+// Order interfaces matching backend types
 interface OrderItem {
   id: string;
   name: string;
@@ -18,9 +61,10 @@ interface OrderItem {
 interface OrderDetails {
   orderNumber: string;
   orderDate: string;
-  estimatedDelivery: string;
+  estimatedDelivery?: string;
   subtotal: number;
-  memberSavings: number;
+  shippingCost: number;
+  tax?: number;
   total: number;
   items: OrderItem[];
   shippingAddress: {
@@ -33,70 +77,209 @@ interface OrderDetails {
   paymentMethod: string;
 }
 
-const OrderSuccessPage = () => {
+const OrderSuccessContent = () => {
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('orderId');
 
   useEffect(() => {
-    // Mock order data - in real app, get from URL params or API
-    const mockOrder: OrderDetails = {
-      orderNumber: "RH" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-      orderDate: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      estimatedDelivery: "December 15-20, 2024",
-      subtotal: 3598,
-      memberSavings: 1079,
-      total: 2519,
-      items: [
-        {
-          id: "1",
-          name: "Ezra Reclaimed Wood 3Dwr Console Table",
-          image:
-            "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-          quantity: 1,
-          price: 1299,
-          sku: "RH-EZ3DWT-001",
-        },
-        {
-          id: "2",
-          name: "Mattai Reclaimed Wood 4Dwr Console",
-          image:
-            "https://images.unsplash.com/photo-1494947665470-20322015e3a8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-          quantity: 1,
-          price: 1599,
-          sku: "RH-MT4DWC-002",
-        },
-        {
-          id: "3",
-          name: "Itsa Reclaimed Wood Bench",
-          image:
-            "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-          quantity: 1,
-          price: 799,
-          sku: "RH-ITRWB-003",
-        },
-      ],
-      shippingAddress: {
-        name: "John Smith",
-        street: "123 Main Street",
-        city: "San Francisco",
-        state: "CA",
-        zip: "94105",
-      },
-      paymentMethod: "•••• •••• •••• 4242",
+    const fetchOrderDetails = async () => {
+      if (!orderId) {
+        setError('Order ID not found');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const orderResponse = await OrderService.getOrder(orderId);
+
+        // Check if response has the expected structure
+        if (!orderResponse.order) {
+          throw new Error('Invalid order response structure');
+        }
+
+        const order = orderResponse.order;
+
+        console.log('📦 Order received from backend:', {
+          order_id: order._id,
+          subtotal: order.subtotal,
+          delivery_cost: order.delivery_cost,
+          distance_miles: order.distance_miles,
+          total: order.total,
+          full_order: order
+        });
+
+        // Transform backend order data to match our interface
+        const transformedOrder: OrderDetails = {
+          orderNumber: order._id || orderId,
+          orderDate: new Date(order.created_at).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          estimatedDelivery: order.estimated_delivery
+            ? new Date(order.estimated_delivery).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : "December 15-20, 2024", // Fallback
+          subtotal: order.subtotal,
+          shippingCost: order.delivery_cost ?? 0,
+          tax: order.tax ?? 0,
+          total: order.total,
+          items: order.items ? order.items.map((item: BackendOrderItem) => {
+            // Handle populated product_id (could be object or string)
+            const productId = typeof item.product_id === 'object' && item.product_id !== null
+              ? (item.product_id._id || item.product_id.id || String(item.product_id))
+              : String(item.product_id);
+            
+            // Get product data if populated
+            const product: PopulatedProduct | null = typeof item.product_id === 'object' && item.product_id !== null
+              ? item.product_id as PopulatedProduct
+              : null;
+            
+            // Get image from product
+            const defaultImageUrl = "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
+            let imageUrl = defaultImageUrl;
+            
+            if (product) {
+              // Debug logging (remove in production)
+              console.log('Product data:', {
+                productId,
+                variantId: item.variant_id,
+                product: product,
+                hasVariants: !!product.variants,
+                variantsCount: product.variants?.length || 0,
+                variants: product.variants,
+                hasImages: !!product.images,
+                imagesCount: product.images?.length || 0,
+                images: product.images,
+              });
+              
+              // Normalize variant_id to string for comparison
+              const variantIdStr = item.variant_id ? String(item.variant_id) : null;
+              
+              // Try to get image from variant if variant_id exists
+              if (variantIdStr && product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+                const variant = product.variants.find((v: ProductVariant) => {
+                  const vId = v._id ? String(v._id) : (v.id ? String(v.id) : null);
+                  return vId === variantIdStr;
+                });
+                
+                console.log('Variant match:', { 
+                  variantIdStr, 
+                  foundVariant: !!variant, 
+                  variant: variant,
+                  variantImages: variant?.images?.length || 0,
+                  variantImagesArray: variant?.images 
+                });
+                
+                if (variant && variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
+                  // Get first available image (primary first, then first image)
+                  const primaryImage = variant.images.find((img: ProductImage) => img.is_primary);
+                  imageUrl = primaryImage?.url || variant.images[0]?.url || defaultImageUrl;
+                  console.log('Using variant image:', imageUrl);
+                }
+              }
+              
+              // If variant match failed or no variant_id, try first variant's image
+              if (imageUrl === defaultImageUrl && product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+                const firstVariant = product.variants[0];
+                console.log('Checking first variant:', { firstVariant, hasImages: !!firstVariant?.images, imagesCount: firstVariant?.images?.length });
+                if (firstVariant && firstVariant.images && Array.isArray(firstVariant.images) && firstVariant.images.length > 0) {
+                  const primaryImage = firstVariant.images.find((img: ProductImage) => img.is_primary);
+                  imageUrl = primaryImage?.url || firstVariant.images[0]?.url || defaultImageUrl;
+                  console.log('Using first variant image:', imageUrl);
+                }
+              }
+              
+              // Fallback to product-level images if we still have the default image
+              if (imageUrl === defaultImageUrl && product.images && Array.isArray(product.images) && product.images.length > 0) {
+                const primaryImage = product.images.find((img: ProductImage) => img.is_primary);
+                imageUrl = primaryImage?.url || product.images[0]?.url || defaultImageUrl;
+                console.log('Using product-level image:', imageUrl);
+              }
+            } else {
+              console.log('Product not populated or is null');
+            }
+            
+            // Get SKU from product or variant
+            let sku = `SKU-${productId}`; // Default fallback
+            if (product) {
+              // Normalize variant_id to string for comparison
+              const variantIdStr = item.variant_id ? String(item.variant_id) : null;
+              
+              if (variantIdStr && product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+                const variant = product.variants.find((v: ProductVariant) => {
+                  const vId = v._id ? String(v._id) : (v.id ? String(v.id) : null);
+                  return vId === variantIdStr;
+                });
+                if (variant && variant.sku) {
+                  sku = variant.sku;
+                }
+              } else if (product.sku) {
+                sku = product.sku;
+              }
+            }
+            
+            return {
+              id: productId,
+              name: item.name,
+              image: imageUrl,
+              quantity: item.quantity,
+              price: item.price,
+              sku: sku,
+            };
+          }) : [],
+          shippingAddress: {
+            name: "Customer", // Backend doesn't store customer name separately
+            street: order.shipping_address.street,
+            city: order.shipping_address.city,
+            state: order.shipping_address.state,
+            zip: order.shipping_address.zip_code,
+          },
+          paymentMethod: order.payment_method || "****",
+        };
+
+        setOrderDetails(transformedOrder);
+      } catch (error) {
+        console.error('Failed to fetch order details:', error);
+        setError('Failed to load order details');
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setOrderDetails(mockOrder);
-  }, []);
+    fetchOrderDetails();
+  }, [orderId]);
 
-  if (!orderDetails) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading order details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !orderDetails) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Order Not Found</h1>
+          <p className="text-gray-600 mb-6">{error || 'The order could not be loaded.'}</p>
+          <Link
+            href="/products"
+            className="inline-block bg-gray-900 text-white px-8 py-3 font-medium tracking-wider hover:bg-gray-800 transition-colors"
+          >
+            CONTINUE SHOPPING
+          </Link>
         </div>
       </div>
     );
@@ -197,7 +380,7 @@ const OrderSuccessPage = () => {
 
                 <div className="text-right">
                   <p className="text-lg font-light text-gray-900">
-                    ${item.price.toLocaleString()}
+                    ${formatCurrency(item.price)}
                   </p>
                 </div>
               </div>
@@ -217,21 +400,27 @@ const OrderSuccessPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal:</span>
                 <span className="text-gray-900">
-                  ${orderDetails.subtotal.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Member Savings:</span>
-                <span className="text-green-600">
-                  -${orderDetails.memberSavings.toLocaleString()}
+                  ${formatCurrency(orderDetails.subtotal)}
                 </span>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Shipping:</span>
-                <span className="text-gray-900">Complimentary</span>
+                <span className="text-gray-900">
+                  {orderDetails.shippingCost === 0
+                    ? 'Complimentary'
+                    : `$${formatCurrency(orderDetails.shippingCost)}`}
+                </span>
               </div>
+
+              {orderDetails.tax !== undefined && orderDetails.tax > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Tax:</span>
+                  <span className="text-gray-900">
+                    ${formatCurrency(orderDetails.tax)}
+                  </span>
+                </div>
+              )}
 
               <div className="border-t border-gray-200 pt-4">
                 <div className="flex justify-between items-center">
@@ -239,7 +428,7 @@ const OrderSuccessPage = () => {
                     Total:
                   </span>
                   <span className="text-xl font-light text-gray-900">
-                    ${orderDetails.total.toLocaleString()}
+                    ${formatCurrency(orderDetails.total)}
                   </span>
                 </div>
               </div>
@@ -283,7 +472,7 @@ const OrderSuccessPage = () => {
         {/* Action Buttons */}
         <div className="text-center space-y-4 lg:space-y-0 lg:space-x-6 lg:flex lg:justify-center">
           <Link
-            href="/orders"
+            href="/track"
             className="inline-block w-full lg:w-auto bg-gray-900 text-white px-8 py-4 font-medium tracking-wider hover:bg-gray-800 transition-colors"
           >
             TRACK YOUR ORDER
@@ -339,17 +528,17 @@ const OrderSuccessPage = () => {
               <p className="text-gray-600 text-sm">
                 Questions about your order? Contact our customer service team at{" "}
                 <Link
-                  href="tel:1-800-555-0123"
+                  href="tel:(323) 618-4663"
                   className="underline hover:text-gray-800"
                 >
-                  1-800-555-0123
+                  (323) 618-4663
                 </Link>{" "}
                 or{" "}
                 <Link
-                  href="mailto:orders@classichome.com"
+                  href="mailto:info@palacioshomeco.com"
                   className="underline hover:text-gray-800"
                 >
-                  orders@classichome.com
+                  info@palacioshomeco.com
                 </Link>
               </p>
             </div>
@@ -357,6 +546,21 @@ const OrderSuccessPage = () => {
         </div>
       </div>
     </main>
+  );
+};
+
+const OrderSuccessPage = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <OrderSuccessContent />
+    </Suspense>
   );
 };
 

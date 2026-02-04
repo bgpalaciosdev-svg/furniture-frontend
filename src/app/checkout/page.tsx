@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, CreditCard, Lock } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useRouter } from "next/navigation";
+import DeliveryService, { AddressData } from "@/services/delivery.service";
+import { formatCurrency, calculateTax } from "@/lib/currency-utils";
+import {
+  formatPhoneNumber,
+  extractPhoneDigits,
+  isValidPhoneNumber,
+} from "@/lib/phone-utils";
 
 interface ShippingInfo {
   firstName: string;
@@ -20,17 +27,17 @@ interface ShippingInfo {
   country: string;
 }
 
-interface BillingInfo {
-  sameAsShipping: boolean;
-  firstName: string;
-  lastName: string;
-  address: string;
-  apartment: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
+// interface BillingInfo {
+//   sameAsShipping: boolean;
+//   firstName: string;
+//   lastName: string;
+//   address: string;
+//   apartment: string;
+//   city: string;
+//   state: string;
+//   zipCode: string;
+//   country: string;
+// }
 
 const CheckoutPage = () => {
   const { cartItems, getTotalPrice } = useCart();
@@ -43,36 +50,68 @@ const CheckoutPage = () => {
     phone: "",
     address: "",
     apartment: "",
-    city: "",
-    state: "",
+    city: "Los Angeles",
+    state: "CA",
     zipCode: "",
     country: "United States",
   });
 
-  const [billingInfo, setBillingInfo] = useState<BillingInfo>({
-    sameAsShipping: true,
-    firstName: "",
-    lastName: "",
-    address: "",
-    apartment: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    country: "United States",
-  });
+  // const [billingInfo, setBillingInfo] = useState<BillingInfo>({
+  //   sameAsShipping: true,
+  //   firstName: "",
+  //   lastName: "",
+  //   address: "",
+  //   apartment: "",
+  //   city: "",
+  //   state: "",
+  //   zipCode: "",
+  //   country: "United States",
+  // });
 
   const [errors, setErrors] = useState<Partial<ShippingInfo>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [isValidatingAddress, setIsValidatingAddress] = useState(false);
+  const [validationSuccess, setValidationSuccess] = useState<string | null>(
+    null,
+  );
+  const [deliveryInfo, setDeliveryInfo] = useState<{
+    cost: number;
+    isFree: boolean;
+    distanceMiles: number;
+    calculated: boolean;
+  } | null>(null);
+
+  const [shippingEstimate, setShippingEstimate] = useState<{
+    cost: number;
+    isFree: boolean;
+    distanceMiles: number;
+    isEstimate: boolean;
+    loading: boolean;
+  } | null>(null);
 
   // Calculate pricing
   const subtotal = getTotalPrice();
-  const memberSavings = cartItems.reduce((total, item) => {
-    const memberPrice = Math.round(item.price * 0.7);
-    const regularPrice = item.price;
-    return total + (regularPrice - memberPrice) * item.quantity;
-  }, 0);
-  const shipping = 0; // Free shipping
-  const tax = Math.round(subtotal * 0.08); // 8% tax
+
+  // Use final delivery info if available, otherwise use estimate
+  const currentShippingInfo = deliveryInfo || shippingEstimate;
+  // Check if this is an error state (invalid location)
+  const isErrorState =
+    currentShippingInfo &&
+    currentShippingInfo.cost === 0 &&
+    (shippingEstimate ? !shippingEstimate.isEstimate : false);
+  // Don't charge shipping for invalid locations (error state)
+  const shipping =
+    currentShippingInfo && !isErrorState
+      ? currentShippingInfo.isFree
+        ? 0
+        : currentShippingInfo.cost
+      : 0;
+
+  // Calculate tax (9.75% on subtotal + shipping)
+  const taxableAmount = subtotal + shipping;
+  const tax = calculateTax(taxableAmount);
+  // Backend formula: total = subtotal + delivery_cost + tax
   const total = subtotal + shipping + tax;
 
   const handleShippingChange = (field: keyof ShippingInfo, value: string) => {
@@ -82,12 +121,123 @@ const CheckoutPage = () => {
     }
   };
 
-  const handleBillingChange = (
-    field: keyof BillingInfo,
-    value: string | boolean
-  ) => {
-    setBillingInfo((prev) => ({ ...prev, [field]: value }));
-  };
+  // Debounced shipping estimation
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const estimateShipping = useCallback(
+    async (address: Partial<AddressData>) => {
+      // Only estimate if we have the ZIP code (the key field for delivery estimation)
+      if (!address.zip_code) {
+        // Clear shipping estimate if no ZIP code
+        setShippingEstimate(null);
+        return;
+      }
+
+      setShippingEstimate((prev) => (prev ? { ...prev, loading: true } : null));
+
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Set new timer for debounced API call
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          // Use available address data, filling in defaults for missing fields
+          const fullAddress: AddressData = {
+            street: address.street || "",
+            city: address.city || "Los Angeles", // Default to LA since we only deliver there
+            state: address.state || "CA", // Default to CA since we only deliver there
+            zip_code: address.zip_code || "",
+            country: address.country || "United States",
+          };
+
+          const result = await DeliveryService.calculateDeliveryCost(
+            fullAddress,
+            subtotal,
+          );
+
+          setShippingEstimate({
+            cost: result.delivery_cost,
+            isFree: result.is_free_delivery,
+            distanceMiles: result.distance_miles,
+            isEstimate: true,
+            loading: false,
+          });
+        } catch (error) {
+          console.error("Shipping estimation failed:", error);
+
+          // Check if error is about invalid location (not in LA)
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const isLocationError =
+            errorMessage.includes(
+              "Delivery is only available in Los Angeles, CA",
+            ) ||
+            errorMessage.includes("not in LA") ||
+            errorMessage.includes("Invalid address");
+
+          if (isLocationError) {
+            // Show error state for invalid location
+            setShippingEstimate({
+              cost: 0,
+              isFree: false,
+              distanceMiles: 0,
+              isEstimate: false,
+              loading: false,
+            });
+          } else {
+            // Show fallback estimate only for network/API errors
+            setShippingEstimate({
+              cost: 50, // No default charge on fallback
+              isFree: subtotal >= 1000, // Check if order qualifies for free delivery
+              distanceMiles: 0,
+              isEstimate: true,
+              loading: false,
+            });
+          }
+        }
+      }, 800); // 800ms debounce delay
+    },
+    [subtotal],
+  );
+
+  // Trigger shipping estimation when ZIP code changes (the key field for delivery estimation)
+  useEffect(() => {
+    const addressForEstimation: Partial<AddressData> = {
+      street: shippingInfo.address,
+      city: shippingInfo.city,
+      state: shippingInfo.state,
+      zip_code: shippingInfo.zipCode,
+      country: shippingInfo.country,
+    };
+
+    // Clear loading state when ZIP code changes
+    if (shippingEstimate?.loading) {
+      setShippingEstimate((prev) =>
+        prev ? { ...prev, loading: false } : null,
+      );
+    }
+
+    estimateShipping(addressForEstimation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingInfo.zipCode, estimateShipping]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // const handleBillingChange = (
+  //   field: keyof BillingInfo,
+  //   value: string | boolean
+  // ) => {
+  //   setBillingInfo((prev) => ({ ...prev, [field]: value }));
+  // };
 
   const validateForm = (): boolean => {
     const newErrors: Partial<ShippingInfo> = {};
@@ -101,9 +251,9 @@ const CheckoutPage = () => {
       newErrors.email = "Email is invalid";
     if (!shippingInfo.phone.trim())
       newErrors.phone = "Phone number is required";
+    else if (!isValidPhoneNumber(shippingInfo.phone))
+      newErrors.phone = "Phone number must be exactly 10 digits";
     if (!shippingInfo.address.trim()) newErrors.address = "Address is required";
-    if (!shippingInfo.city.trim()) newErrors.city = "City is required";
-    if (!shippingInfo.state.trim()) newErrors.state = "State is required";
     if (!shippingInfo.zipCode.trim())
       newErrors.zipCode = "ZIP code is required";
 
@@ -111,15 +261,307 @@ const CheckoutPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleContinueToPayment = () => {
+  const handleFinancingOption = async (financingUrl: string) => {
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsValidatingAddress(true);
+    setOrderError(null);
+    setValidationSuccess(null);
+
+    try {
+      // Get the order data that would be prepared for payment
+      const storedOrderData = sessionStorage.getItem("pendingOrder");
+      let orderData;
+
+      if (storedOrderData) {
+        // Use existing order data from session storage
+        orderData = JSON.parse(storedOrderData);
+        // Update payment method for financing
+        orderData.payment_method = "Financing";
+      } else {
+        // If no stored order data, we need to validate address first
+        const addressData: AddressData = {
+          street: shippingInfo.address,
+          city: shippingInfo.city,
+          state: shippingInfo.state,
+          zip_code: shippingInfo.zipCode,
+          country: shippingInfo.country,
+        };
+
+        const validationResult =
+          await DeliveryService.validateAddress(addressData);
+
+        if (!validationResult.within_delivery_zone) {
+          setOrderError(
+            "Sorry, we don't deliver to this address yet. Please check that your address is in Los Angeles, CA.",
+          );
+          setIsValidatingAddress(false);
+          return;
+        }
+
+        // Use current shipping info to create order data
+        const shippingCost =
+          currentShippingInfo && !isErrorState
+            ? currentShippingInfo.isFree
+              ? 0
+              : currentShippingInfo.cost
+            : 0;
+        const financingTax = calculateTax(subtotal + shippingCost);
+
+        orderData = {
+          items: cartItems.map((item) => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            price: item.price,
+            name: item.name,
+          })),
+          shipping_address: {
+            street: shippingInfo.address,
+            city: shippingInfo.city,
+            state: shippingInfo.state,
+            zip_code: shippingInfo.zipCode,
+            country: shippingInfo.country,
+          },
+          billing_address: {
+            street: shippingInfo.address,
+            city: shippingInfo.city,
+            state: shippingInfo.state,
+            zip_code: shippingInfo.zipCode,
+            country: shippingInfo.country,
+          },
+          payment_method: "Financing",
+          customer_email: shippingInfo.email,
+          customer_phone: shippingInfo.phone,
+          customer_first_name: shippingInfo.firstName,
+          customer_last_name: shippingInfo.lastName,
+          delivery_cost: shippingCost,
+          distance_miles: validationResult.distance_miles,
+          delivery_zone_validated: true,
+          subtotal: subtotal,
+          tax: financingTax,
+          total: subtotal + shippingCost + financingTax,
+          amount: subtotal + shippingCost + financingTax,
+        };
+      }
+
+      // Send order data to backend (same endpoint as payment confirmation)
+      const response = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
+        }/api/payments/confirm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            payment_intent_id: "financing_" + Date.now(), // Unique identifier for financing orders
+            order_data: orderData,
+          }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to submit order");
+      }
+
+      console.log("Order submitted successfully:", result);
+
+      // Open financing URL in new tab
+      window.open(financingUrl, "_blank");
+
+      setIsValidatingAddress(false);
+      setValidationSuccess(
+        "Order submitted! Please complete the financing application in the new tab, then call our store.",
+      );
+      router.push("/order-success?orderId=" + result.order_id);
+      setIsProcessing(false);
+      setIsValidatingAddress(false);
+      setOrderError(null);
+      setValidationSuccess(null);
+    } catch (error) {
+      console.error("Failed to submit order for financing:", error);
+      setIsValidatingAddress(false);
+      setOrderError("Failed to submit order. Please try again.");
+    }
+  };
+
+  const handleContinueToPayment = async () => {
     if (validateForm()) {
-      setIsProcessing(true);
-      // Simulate processing delay
-      setTimeout(() => {
-        // In a real app, you would integrate with a payment processor like Stripe
-        // For now, we'll redirect to an order success page
-        router.push("/order-success");
-      }, 2000);
+      setIsValidatingAddress(true);
+      setOrderError(null);
+      setValidationSuccess(null);
+
+      try {
+        // First validate the delivery address
+        const addressData: AddressData = {
+          street: shippingInfo.address,
+          city: shippingInfo.city,
+          state: shippingInfo.state,
+          zip_code: shippingInfo.zipCode,
+          country: shippingInfo.country,
+        };
+
+        const validationResult =
+          await DeliveryService.validateAddress(addressData);
+
+        if (!validationResult.within_delivery_zone) {
+          setOrderError(
+            "Sorry, we don't deliver to this address yet. Please check that your address is in Los Angeles, CA.",
+          );
+          setIsValidatingAddress(false);
+          return;
+        }
+
+        // Address is valid, show success message with distance
+        setValidationSuccess(
+          `✓ Address validated! Your location is ${validationResult.distance_miles.toFixed(
+            1,
+          )} miles from our warehouse.`,
+        );
+
+        // Calculate delivery cost
+        try {
+          const costResult = await DeliveryService.calculateDeliveryCost(
+            addressData,
+            subtotal,
+          );
+
+          setDeliveryInfo({
+            cost: costResult.delivery_cost,
+            isFree: costResult.is_free_delivery,
+            distanceMiles: costResult.distance_miles,
+            calculated: true,
+          });
+
+          // Clear the estimate now that we have final delivery info
+          setShippingEstimate(null);
+
+          // Show free delivery message if applicable
+          if (costResult.is_free_delivery) {
+            setValidationSuccess(
+              `✓ Address validated! Your location is ${validationResult.distance_miles.toFixed(
+                1,
+              )} miles from our warehouse. Free Delivery! Your order qualifies.`,
+            );
+          }
+        } catch (costError) {
+          console.error("❌ Delivery cost calculation failed:", costError);
+          // Set default delivery cost if calculation fails
+          setDeliveryInfo({
+            cost: 50, // Default delivery cost
+            isFree: false,
+            distanceMiles: validationResult.distance_miles,
+            calculated: true,
+          });
+          setValidationSuccess(
+            `✓ Address validated! Your location is ${validationResult.distance_miles.toFixed(
+              1,
+            )} miles from our warehouse.`,
+          );
+        }
+
+        // Proceed to payment processing
+        setIsValidatingAddress(false);
+        setIsProcessing(true);
+
+        try {
+          // Prepare order data
+          // Use the same shipping info that's displayed to the user
+          const shippingCost =
+            currentShippingInfo && !isErrorState
+              ? currentShippingInfo.isFree
+                ? 0
+                : currentShippingInfo.cost
+              : 0;
+          const distanceMiles =
+            deliveryInfo?.distanceMiles ||
+            currentShippingInfo?.distanceMiles ||
+            validationResult.distance_miles;
+
+          console.log("📦 Order submission data:", {
+            deliveryInfo,
+            currentShippingInfo,
+            shippingCost,
+            distanceMiles,
+            shipping: shipping,
+            subtotal,
+            total,
+          });
+
+          const orderData = {
+            items: cartItems.map((item) => ({
+              product_id: item.id, // Use the original MongoDB ObjectId
+              quantity: item.quantity,
+              price: item.price,
+              name: item.name,
+            })),
+            shipping_address: {
+              street: shippingInfo.address,
+              city: shippingInfo.city,
+              state: shippingInfo.state,
+              zip_code: shippingInfo.zipCode,
+              country: shippingInfo.country,
+            },
+            billing_address: {
+              street: shippingInfo.address,
+              city: shippingInfo.city,
+              state: shippingInfo.state,
+              zip_code: shippingInfo.zipCode,
+              country: shippingInfo.country,
+            },
+            payment_method: "Credit Card", // You can add payment method selection later
+            customer_email: shippingInfo.email,
+            customer_phone: shippingInfo.phone,
+            customer_first_name: shippingInfo.firstName,
+            customer_last_name: shippingInfo.lastName,
+            delivery_cost: shippingCost,
+            distance_miles: distanceMiles,
+            delivery_zone_validated: true,
+            subtotal: subtotal,
+            tax: tax,
+            total: subtotal + shippingCost + tax, // Backend requires 'total' field
+            amount: subtotal + shippingCost + tax, // Total amount for payment (used by Stripe)
+          };
+
+          // Store order data in session storage for payment page
+          sessionStorage.setItem("pendingOrder", JSON.stringify(orderData));
+
+          // Redirect to secure payment processing
+          router.push("/payment");
+        } catch (error) {
+          console.error("Failed to prepare order for payment:", error);
+          setIsProcessing(false);
+          setOrderError("Failed to proceed to payment. Please try again.");
+        }
+      } catch (validationError) {
+        console.error("Address validation failed:", validationError);
+        setIsValidatingAddress(false);
+
+        // Handle validation errors
+        let errorMessage =
+          "Unable to validate your delivery address. Please try again.";
+
+        if (validationError instanceof Error) {
+          if (
+            validationError.message.includes("Network error") ||
+            validationError.message.includes("fetch")
+          ) {
+            errorMessage =
+              "Network error. Please check your internet connection and try again.";
+          } else if (validationError.message.includes("500")) {
+            errorMessage = "Server error. Please try again later.";
+          } else {
+            errorMessage = validationError.message;
+          }
+        }
+
+        setOrderError(errorMessage);
+      }
     }
   };
 
@@ -156,6 +598,28 @@ const CheckoutPage = () => {
           <h1 className="text-4xl font-light text-gray-900 tracking-wider">
             CHECKOUT
           </h1>
+        </div>
+
+        {/* Delivery Zone Notice */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <span className="text-2xl" role="img" aria-label="Delivery truck">
+                🚚
+              </span>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-blue-900 mb-1">
+                We currently deliver only to Los Angeles, CA
+              </h3>
+              <p className="text-sm text-blue-700">
+                Free delivery for orders over $1,000 within 5-10 miles
+              </p>
+              <p className="text-sm text-blue-700 mt-2">
+                Any canceled or refunded order is subject to a 30% restocking/cancellation fee based on the total purchase price
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -229,16 +693,24 @@ const CheckoutPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
                   </label>
-                  <input
-                    type="tel"
-                    value={shippingInfo.phone}
-                    onChange={(e) =>
-                      handleShippingChange("phone", e.target.value)
-                    }
-                    className={`w-full border ${
-                      errors.phone ? "border-red-500" : "border-gray-300"
-                    } px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent`}
-                  />
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-50 text-gray-700">
+                      +1
+                    </span>
+                    <input
+                      type="tel"
+                      value={formatPhoneNumber(shippingInfo.phone)}
+                      onChange={(e) => {
+                        const digits = extractPhoneDigits(e.target.value);
+                        handleShippingChange("phone", digits);
+                      }}
+                      placeholder="(123) 456-7890"
+                      maxLength={14}
+                      className={`flex-1 border ${
+                        errors.phone ? "border-red-500" : "border-gray-300"
+                      } px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent`}
+                    />
+                  </div>
                   {errors.phone && (
                     <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
                   )}
@@ -272,7 +744,7 @@ const CheckoutPage = () => {
                     </p>
                   )}
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Apartment, suite, etc. (optional)
                   </label>
@@ -284,7 +756,7 @@ const CheckoutPage = () => {
                     }
                     className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
                   />
-                </div>
+                </div> */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -293,16 +765,9 @@ const CheckoutPage = () => {
                     <input
                       type="text"
                       value={shippingInfo.city}
-                      onChange={(e) =>
-                        handleShippingChange("city", e.target.value)
-                      }
-                      className={`w-full border ${
-                        errors.city ? "border-red-500" : "border-gray-300"
-                      } px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent`}
+                      disabled
+                      className="w-full border border-gray-300 bg-gray-50 text-gray-500 px-4 py-3 cursor-not-allowed"
                     />
-                    {errors.city && (
-                      <p className="text-red-500 text-sm mt-1">{errors.city}</p>
-                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -311,18 +776,9 @@ const CheckoutPage = () => {
                     <input
                       type="text"
                       value={shippingInfo.state}
-                      onChange={(e) =>
-                        handleShippingChange("state", e.target.value)
-                      }
-                      className={`w-full border ${
-                        errors.state ? "border-red-500" : "border-gray-300"
-                      } px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent`}
+                      disabled
+                      className="w-full border border-gray-300 bg-gray-50 text-gray-500 px-4 py-3 cursor-not-allowed"
                     />
-                    {errors.state && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {errors.state}
-                      </p>
-                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -351,7 +807,7 @@ const CheckoutPage = () => {
             {/* Payment Section */}
             <div className="bg-white border border-gray-200 p-8">
               <h2 className="text-2xl font-light text-gray-900 tracking-wider mb-6">
-                PAYMENT
+                PAY WITH CARD
               </h2>
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg">
                 <div className="flex items-center justify-center space-x-4 mb-4">
@@ -367,15 +823,95 @@ const CheckoutPage = () => {
                 </p>
                 <button
                   onClick={handleContinueToPayment}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isValidatingAddress}
                   className={`w-full ${
-                    isProcessing
+                    isProcessing || isValidatingAddress
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-gray-900 hover:bg-gray-800"
                   } text-white py-4 px-8 font-medium tracking-wider transition-colors`}
                 >
-                  {isProcessing ? "PROCESSING..." : "CONTINUE TO PAYMENT"}
+                  {isValidatingAddress
+                    ? "VALIDATING ADDRESS..."
+                    : isProcessing
+                      ? "PROCESSING..."
+                      : "CONTINUE TO PAYMENT"}
                 </button>
+
+                {validationSuccess && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-600 text-sm text-center">
+                      {validationSuccess}
+                    </p>
+                  </div>
+                )}
+
+                {orderError && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-600 text-sm text-center">
+                      {orderError}
+                    </p>
+                    <button
+                      onClick={() => setOrderError(null)}
+                      className="mt-2 text-red-600 text-sm underline hover:text-red-800"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Financing Options Section */}
+            <div className="bg-white border border-gray-200 p-8">
+              <h2 className="text-2xl font-light text-gray-900 tracking-wider mb-6">
+                FINANCING OPTIONS
+              </h2>
+              <div className="bg-blue-50 border border-blue-200 p-6 rounded-lg">
+                <div className="flex items-center space-x-2 mb-3">
+                  <CreditCard className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700">
+                    Go for Financing Options
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mb-4">
+                  Apply for financing and get approved instantly. After filling
+                  out the form, please call , email or visit our store to
+                  complete your order.
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() =>
+                      handleFinancingOption(
+                        "https://apply.snapfinance.com/snap-com/landing?paramId=qiUhkzP5F08l77TPejPjo0HePDUgEHE1nYuaQpwminqGeYcBeSJcjLxn9O+pW/tjNTjqqvnNmnmDfkyNRG90PtXmgsWitYRaSh8oUg2MEuI%3D&source=SHORT_CODE&merchantId=490294307&utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAdGRleAOl3YFleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadaSbkzJoWa0ZfcQ4lor_krMUFrTRKzTqdij6-0rPWBUONC38mMEDYn6iZLPA_aem_w1p1bqiuY0f3CGRy_Q7RfA",
+                      )
+                    }
+                    disabled={isProcessing || isValidatingAddress}
+                    className={`w-full ${
+                      isProcessing || isValidatingAddress
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    } text-white py-3 px-4 text-sm font-medium tracking-wider transition-colors`}
+                  >
+                    {isValidatingAddress
+                      ? "PROCESSING..."
+                      : "APPLY WITH SNAP FINANCE"}
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleFinancingOption(
+                        "https://apply.acima.com/lease?app_id=lo&location_guid=loca-a92e49c0-280c-489a-9253-cc59ebafa41e&utm_campaign=merchant&utm_source=applyonmobile&lang=en&utm_medium=social&utm_content=link_in_bio&fbclid=PAdGRleAOl6QNleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAaem1Wgohp6NjrtK5krtO_Ut31cbV5Nqq62uzgQTX8wPi905ehy4eTKrmvHZvw_aem_AjrF1z_SpuyPcAPGvQpsnw",
+                      )
+                    }
+                    disabled={isProcessing || isValidatingAddress}
+                    className={`w-full ${
+                      isProcessing || isValidatingAddress
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700"
+                    } text-white py-3 px-4 text-sm font-medium tracking-wider transition-colors`}
+                  >
+                    {isValidatingAddress ? "PROCESSING..." : "APPLY WITH ACIMA"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -390,7 +926,6 @@ const CheckoutPage = () => {
               {/* Order Items */}
               <div className="space-y-6 mb-8">
                 {cartItems.map((item) => {
-                  const memberPrice = Math.round(item.price * 0.7);
                   return (
                     <div key={item.id} className="flex space-x-4">
                       <div className="relative w-16 h-16 bg-gray-100 flex-shrink-0">
@@ -412,7 +947,7 @@ const CheckoutPage = () => {
                         <p className="text-sm text-gray-500">SKU: {item.sku}</p>
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-sm font-medium">
-                            ${memberPrice.toLocaleString()} Member
+                            ${formatCurrency(item.price)}
                           </span>
                         </div>
                       </div>
@@ -426,32 +961,66 @@ const CheckoutPage = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="text-gray-900">
-                    ${subtotal.toLocaleString()}
+                    ${formatCurrency(subtotal)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Member Savings</span>
-                  <span className="text-green-600">
-                    -${memberSavings.toLocaleString()}
+                {/* <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Shipping</span>
+                  <span
+                    className={`text-gray-900 ${
+                      isErrorState
+                        ? "text-red-600 font-medium"
+                        : "text-green-600 font-medium"
+                    }`}
+                  >
+                    {isErrorState
+                      ? "Delivery not available for this location"
+                      : "FREE DELIVERY!"}
                   </span>
-                </div>
+                </div> */}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
-                  <span className="text-gray-900">
-                    {shipping === 0
-                      ? "FREE"
-                      : `$${(shipping as number).toLocaleString()}`}
+                  <span
+                    className={`text-gray-900 ${
+                      isErrorState
+                        ? "text-red-600 font-medium"
+                        : currentShippingInfo?.isFree
+                          ? "text-green-600 font-medium"
+                          : ""
+                    }`}
+                  >
+                    {isErrorState
+                      ? "Delivery not available for this location"
+                      : deliveryInfo
+                        ? deliveryInfo.isFree
+                          ? "FREE DELIVERY!"
+                          : `$${formatCurrency(deliveryInfo.cost)}`
+                        : shippingEstimate
+                          ? shippingEstimate.loading
+                            ? "ESTIMATING..."
+                            : shippingEstimate.isFree
+                              ? `FREE DELIVERY!${
+                                  shippingEstimate.isEstimate
+                                    ? " (estimated)"
+                                    : ""
+                                }`
+                              : `$${formatCurrency(shippingEstimate.cost)}${
+                                  shippingEstimate.isEstimate
+                                    ? " (estimated)"
+                                    : ""
+                                }`
+                          : "Enter ZIP code for shipping estimate"}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Tax</span>
-                  <span className="text-gray-900">${tax.toLocaleString()}</span>
+                  <span className="text-gray-900">${formatCurrency(tax)}</span>
                 </div>
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between text-lg font-medium">
                     <span className="text-gray-900">Total</span>
                     <span className="text-gray-900">
-                      ${total.toLocaleString()}
+                      ${formatCurrency(total)}
                     </span>
                   </div>
                 </div>

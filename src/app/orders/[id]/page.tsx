@@ -11,8 +11,6 @@ import {
   CheckCircle,
   Truck,
   XCircle,
-  Calendar,
-  DollarSign,
   MapPin,
   CreditCard,
   Phone,
@@ -20,6 +18,7 @@ import {
   Download,
   MessageCircle,
 } from "lucide-react";
+import { formatCurrency } from "@/lib/currency-utils";
 
 // Order interfaces
 interface OrderItem {
@@ -51,7 +50,6 @@ interface Order {
   subtotal?: number;
   shippingCost?: number;
   tax?: number;
-  discount?: number;
   deliveryInstructions?: string;
 }
 
@@ -97,7 +95,6 @@ const sampleCustomerOrders: Record<string, Order> = {
     subtotal: 2599,
     shippingCost: 0,
     tax: 208,
-    discount: 0,
     deliveryInstructions:
       "Please call before delivery and use the side entrance.",
   },
@@ -131,7 +128,6 @@ const sampleCustomerOrders: Record<string, Order> = {
     subtotal: 1299,
     shippingCost: 0,
     tax: 104,
-    discount: 50,
   },
 };
 
@@ -300,7 +296,7 @@ export default function CustomerOrderDetailsPage() {
             <div className="flex items-center justify-between">
               {Object.entries(statusConfig)
                 .filter(([key]) => key !== "cancelled")
-                .map(([key, config], index) => {
+                .map(([key, config]) => {
                   const isCompleted =
                     key === "pending" ||
                     (key === "processing" &&
@@ -434,12 +430,12 @@ export default function CustomerOrderDetailsPage() {
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                       <span>Qty: {item.quantity}</span>
                       <span>•</span>
-                      <span>${item.price.toLocaleString()} each</span>
+                      <span>${formatCurrency(item.price)} each</span>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-light text-gray-900">
-                      ${(item.price * item.quantity).toLocaleString()}
+                      ${formatCurrency(item.price * item.quantity)}
                     </p>
                     <Link
                       href={`/products/${item.id}`}
@@ -467,16 +463,7 @@ export default function CustomerOrderDetailsPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Subtotal:</span>
                   <span className="text-gray-900">
-                    ${order.subtotal.toLocaleString()}
-                  </span>
-                </div>
-              )}
-
-              {order.discount && order.discount > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Discount:</span>
-                  <span className="text-green-600">
-                    -${order.discount.toLocaleString()}
+                    ${formatCurrency(order.subtotal)}
                   </span>
                 </div>
               )}
@@ -487,16 +474,16 @@ export default function CustomerOrderDetailsPage() {
                   <span className="text-gray-900">
                     {order.shippingCost === 0
                       ? "Complimentary"
-                      : `$${order.shippingCost.toLocaleString()}`}
+                      : `$${formatCurrency(order.shippingCost)}`}
                   </span>
                 </div>
               )}
 
-              {order.tax && (
+              {order.tax !== undefined && order.tax > 0 && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Tax:</span>
                   <span className="text-gray-900">
-                    ${order.tax.toLocaleString()}
+                    ${formatCurrency(order.tax)}
                   </span>
                 </div>
               )}
@@ -507,7 +494,7 @@ export default function CustomerOrderDetailsPage() {
                     Total:
                   </span>
                   <span className="text-xl font-light text-gray-900">
-                    ${order.total.toLocaleString()}
+                    ${formatCurrency(order.total)}
                   </span>
                 </div>
               </div>
@@ -598,11 +585,11 @@ export default function CustomerOrderDetailsPage() {
             <div className="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-8 text-sm text-gray-600">
               <div className="flex items-center">
                 <Phone className="h-4 w-4 mr-2" />
-                <span>1-800-555-0123</span>
+                <span>(323) 618-4663</span>
               </div>
               <div className="flex items-center">
                 <Mail className="h-4 w-4 mr-2" />
-                <span>orders@classichome.com</span>
+                <span>info@palacioshomeco.com</span>
               </div>
             </div>
           </div>

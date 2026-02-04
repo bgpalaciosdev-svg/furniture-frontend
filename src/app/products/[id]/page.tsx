@@ -1,128 +1,43 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, Plus, Minus } from "lucide-react";
+import {
+  ChevronRight,
+  Plus,
+  Minus,
+  X,
+  ChevronLeft,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useProduct } from "@/hooks/useProduct";
+import { ProductDetails } from "@/types/product.types";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorMessage from "@/components/ErrorMessage";
 
-// Extended Product interface for single product page
-interface ProductDetails {
-  id: string;
-  name: string;
-  sku: string;
-  images: string[];
-  category: string;
-  availability: "in-stock" | "out-of-stock" | "on-order";
-  features: string[];
-  shape: string;
-  price: number;
-  isFirstLook?: boolean;
-  stockInfo: {
-    location: string;
-    stock: number;
-    moreArriving: string;
-  }[];
-  description?: string;
-  note?: string;
-  variants: {
-    size: {
-      name: string;
-      options: { value: string; label: string; priceModifier?: number }[];
-    };
-    color: {
-      name: string;
-      options: {
-        value: string;
-        label: string;
-        colorCode?: string;
-        priceModifier?: number;
-      }[];
-    };
-    finish: {
-      name: string;
-      options: { value: string; label: string; priceModifier?: number }[];
-    };
-  };
-}
-
-// Sample product data - In a real app, this would come from an API
-const getProductById = (id: string): ProductDetails => {
-  // This would typically be an API call using the id parameter
-  // For demo purposes, returning static data regardless of id
-  console.log(`Fetching product with ID: ${id}`);
+// Static fallback data for when API is not available
+const getFallbackProduct = (id: string): ProductDetails => {
   return {
-    id: "59972101",
-    name: "Mattai Reclaimed Wood 4Dwr Console",
-    sku: "59972101",
-    images: [
-      "https://images.unsplash.com/photo-1494947665470-20322015e3a8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1549497538-303791108f95?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    ],
-    category: "Console Tables",
-    availability: "on-order",
-    features: ["reclaimed-wood", "four-drawer"],
-    shape: "rectangular",
-    price: 1599,
-    isFirstLook: true,
-    stockInfo: [
-      {
-        location: "Los Angeles, CA",
-        stock: 0,
-        moreArriving: "On Order",
-      },
-    ],
-    note: "The color of the product might differ due to production and your monitor screen settings. It's essential to ensure proper color calibration to accurately represent our products.",
+    id: id || "fallback",
+    name: "Product Not Found",
+    sku: "N/A",
+    images: ["/placeholder-image.jpg"],
+    category: "Unknown",
+    availability: "out-of-stock", // Required for CartItem compatibility
+    // features: [], // Not available in backend model
+    // shape: "rectangular", // Not available in backend model
+    price: 0,
+    // isFirstLook: false, // Not available in backend model
+    stockInfo: [], // Required for ProductDetails compatibility
+    description: "Product information is not available.",
+    // note: "Please try refreshing the page or contact support if the problem persists.", // Not available in backend model
     variants: {
-      size: {
-        name: "Size",
-        options: [
-          { value: "small", label: '48" W x 16" D x 32" H', priceModifier: 0 },
-          {
-            value: "medium",
-            label: '60" W x 18" D x 32" H',
-            priceModifier: 200,
-          },
-          {
-            value: "large",
-            label: '72" W x 20" D x 32" H',
-            priceModifier: 400,
-          },
-        ],
-      },
-      color: {
-        name: "Wood Color",
-        options: [
-          {
-            value: "natural",
-            label: "Natural Reclaimed",
-            colorCode: "#D2B48C",
-          },
-          {
-            value: "dark-walnut",
-            label: "Dark Walnut",
-            colorCode: "#5D4037",
-            priceModifier: 100,
-          },
-          {
-            value: "weathered-gray",
-            label: "Weathered Gray",
-            colorCode: "#9E9E9E",
-            priceModifier: 150,
-          },
-        ],
-      },
-      finish: {
-        name: "Finish",
-        options: [
-          { value: "matte", label: "Matte Protective", priceModifier: 0 },
-          { value: "satin", label: "Satin", priceModifier: 75 },
-          { value: "distressed", label: "Distressed", priceModifier: 125 },
-        ],
-      },
+      size: { name: "Size", options: [] },
+      color: { name: "Color", options: [] },
+      finish: { name: "Material", options: [] },
     },
   };
 };
@@ -135,28 +50,151 @@ interface ProductPageProps {
 
 export default function ProductPage({ params }: ProductPageProps) {
   const resolvedParams = use(params);
-  const product = getProductById(resolvedParams.id);
+  const { productDetails, loading, error, refetch } = useProduct(
+    resolvedParams.id
+  );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [showAddedMessage, setShowAddedMessage] = useState(false);
-  const [selectedVariants, setSelectedVariants] = useState({
-    size: product.variants.size.options[0].value,
-    color: product.variants.color.options[0].value,
-    finish: product.variants.finish.options[0].value,
-  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<"description" | "details">(
+    "description"
+  );
+  const [isZoomEnabled, setIsZoomEnabled] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const { addToCart } = useCart();
+
+  // Memoize fallback product to prevent recreation on every render
+  const fallbackProduct = useMemo(
+    () => getFallbackProduct(resolvedParams.id),
+    [resolvedParams.id]
+  );
+
+  // Use productDetails if available, otherwise fallback
+  const displayProduct = productDetails || fallbackProduct;
+
+  const [selectedVariants, setSelectedVariants] = useState({
+    size: displayProduct.variants.size.options[0]?.value || "",
+    color: displayProduct.variants.color.options[0]?.value || "",
+    finish: displayProduct.variants.finish.options[0]?.value || "",
+  });
+
+  // Memoize default images to prevent recreation on every render
+  const defaultImages = useMemo(
+    () => productDetails?.images || fallbackProduct.images,
+    [productDetails?.images, fallbackProduct.images]
+  );
+
+  // Get images for currently selected variant
+  const [displayImages, setDisplayImages] = useState<string[]>(defaultImages);
+
+  // Update selected variants when product data loads
+  useEffect(() => {
+    if (productDetails) {
+      setSelectedVariants({
+        size: productDetails.variants.size.options[0]?.value || "",
+        color: productDetails.variants.color.options[0]?.value || "",
+        finish: productDetails.variants.finish.options[0]?.value || "",
+      });
+    }
+  }, [productDetails]);
+
+  // Find the matching variant based on selected attributes
+  const matchingVariant = useMemo(() => {
+    if (!productDetails?.rawVariants) return null;
+
+    return productDetails.rawVariants.find((variant) => {
+      // Match based on attribute field (new dynamic system)
+      if (variant.attribute) {
+        return variant.attribute === selectedVariants.size; // size field contains attribute value for backwards compatibility
+      }
+      // Fallback to old size field for backwards compatibility with existing products
+      return !selectedVariants.size || variant.size === selectedVariants.size;
+    });
+  }, [selectedVariants, productDetails]);
+
+  // Update displayed images based on selected variant
+  useEffect(() => {
+    if (!productDetails?.rawVariants) {
+      setDisplayImages(defaultImages);
+      return;
+    }
+
+    // If matching variant has images, use them; otherwise fall back
+    if (matchingVariant?.images && matchingVariant.images.length > 0) {
+      const variantImages = matchingVariant.images.map((img) => img.url);
+      setDisplayImages(variantImages);
+      setSelectedImageIndex(0); // Reset to first image when variant changes
+    } else if (
+      productDetails.productLevelImages &&
+      productDetails.productLevelImages.length > 0
+    ) {
+      // Fallback to product-level images
+      setDisplayImages(productDetails.productLevelImages);
+      setSelectedImageIndex(0);
+    } else {
+      // Use default images
+      setDisplayImages(defaultImages);
+      setSelectedImageIndex(0);
+    }
+  }, [matchingVariant, productDetails, defaultImages]);
+
+  // Handle keyboard navigation in modal
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsModalOpen(false);
+      }
+      if (e.key === "ArrowRight") {
+        setModalImageIndex((prev) => (prev + 1) % displayImages.length);
+      }
+      if (e.key === "ArrowLeft") {
+        setModalImageIndex(
+          (prev) => (prev - 1 + displayImages.length) % displayImages.length
+        );
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isModalOpen, displayImages.length]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center">
+        <LoadingSpinner />
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center">
+        <ErrorMessage
+          message={error}
+          onRetry={refetch}
+          retryLabel="Try Again"
+        />
+      </main>
+    );
+  }
 
   // Calculate total price including variant modifiers
   const calculateTotalPrice = () => {
-    let totalPrice = product.price;
+    let totalPrice = displayProduct.price;
 
-    const selectedSize = product.variants.size.options.find(
+    const selectedSize = displayProduct.variants.size.options.find(
       (option) => option.value === selectedVariants.size
     );
-    const selectedColor = product.variants.color.options.find(
+    const selectedColor = displayProduct.variants.color.options.find(
       (option) => option.value === selectedVariants.color
     );
-    const selectedFinish = product.variants.finish.options.find(
+    const selectedFinish = displayProduct.variants.finish.options.find(
       (option) => option.value === selectedVariants.finish
     );
 
@@ -178,11 +216,48 @@ export default function ProductPage({ params }: ProductPageProps) {
     }));
   };
 
+  const openModal = (imageIndex: number) => {
+    setModalImageIndex(imageIndex);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const goToNextImage = () => {
+    setModalImageIndex((prev) => (prev + 1) % displayImages.length);
+  };
+
+  const goToPrevImage = () => {
+    setModalImageIndex(
+      (prev) => (prev - 1 + displayImages.length) % displayImages.length
+    );
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isZoomEnabled) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPosition({ x, y });
+  };
+
+  const toggleZoom = () => {
+    setIsZoomEnabled(!isZoomEnabled);
+  };
+
   const breadcrumbs = [
-    { name: "Artisan House", href: "/" },
-    { name: "Reclaimed & Reframed", href: "/collections/reclaimed" },
-    { name: "Console Tables", href: "/products?category=console" },
-    { name: product.name, href: "#" },
+    { name: "PALACIOS HOME CO.", href: "/" },
+    { name: "Products", href: "/products" },
+    {
+      name: displayProduct.category,
+      href: `/products?category=${displayProduct.category
+        .toLowerCase()
+        .replace(/\s+/g, "-")}`,
+    },
+    { name: displayProduct.name, href: "#" },
   ];
 
   return (
@@ -213,23 +288,37 @@ export default function ProductPage({ params }: ProductPageProps) {
           {/* Product Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="aspect-[4/3] relative bg-gray-50 border border-gray-200">
+            <div
+              className="aspect-[4/3] relative bg-gray-50 border border-gray-200 cursor-pointer group"
+              onClick={() => openModal(selectedImageIndex)}
+            >
               <Image
-                src={product.images[selectedImageIndex]}
-                alt={product.name}
+                src={
+                  displayImages[selectedImageIndex] || "/placeholder-image.jpg"
+                }
+                alt={displayProduct.name}
                 fill
-                className="object-cover"
+                className="object-cover transition-transform group-hover:scale-105"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
+              <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity" />
+              <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs font-medium text-gray-900">
+                  Click to expand
+                </span>
+              </div>
             </div>
 
             {/* Thumbnail Images */}
             <div className="grid grid-cols-5 gap-2">
-              {product.images.map((image, index) => (
+              {displayImages.map((image, index) => (
                 <button
                   key={index}
-                  onClick={() => setSelectedImageIndex(index)}
-                  className={`aspect-square relative bg-gray-50 border-2 transition-all ${
+                  onClick={() => {
+                    setSelectedImageIndex(index);
+                    openModal(index);
+                  }}
+                  className={`aspect-square relative bg-gray-50 border-2 transition-all hover:scale-105 ${
                     selectedImageIndex === index
                       ? "border-gray-900"
                       : "border-gray-200 hover:border-gray-400"
@@ -237,7 +326,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                 >
                   <Image
                     src={image}
-                    alt={`${product.name} view ${index + 1}`}
+                    alt={`${displayProduct.name} view ${index + 1}`}
                     fill
                     className="object-cover"
                     sizes="20vw"
@@ -250,139 +339,147 @@ export default function ProductPage({ params }: ProductPageProps) {
           {/* Product Details */}
           <div className="space-y-8">
             {/* First Look Badge */}
-            {product.isFirstLook && (
+            {/* {displayProduct.isFirstLook && (
               <div className="inline-block">
                 <span className="text-xs font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
                   First Look
                 </span>
               </div>
-            )}
+            )} */}
 
             {/* Product Title */}
             <div>
               <h1 className="text-3xl font-light text-gray-900 mb-2">
-                {product.name}
+                {displayProduct.name}
               </h1>
-              <p className="text-sm text-gray-500">SKU {product.sku}</p>
+              {/* <p className="text-sm text-gray-500">SKU {displayProduct.sku}</p> */}
             </div>
 
             {/* Status */}
-            <div>
+            {/* <div>
               <span className="text-lg font-medium text-gray-900">
-                {product.availability === "on-order" && "On Order"}
-                {product.availability === "in-stock" && "In Stock"}
-                {product.availability === "out-of-stock" && "Out of Stock"}
+                {displayProduct.availability === "on-order" && "On Order"}
+                {displayProduct.availability === "in-stock" && "In Stock"}
+                {displayProduct.availability === "out-of-stock" && "Out of Stock"}
               </span>
-            </div>
+            </div> */}
 
             {/* Variant Selection */}
             <div className="space-y-6">
               {/* Size Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  {product.variants.size.name}
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {product.variants.size.options.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleVariantChange("size", option.value)}
-                      className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
-                        selectedVariants.size === option.value
-                          ? "border-gray-900 bg-gray-50"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-900">
-                          {option.label}
-                        </span>
-                        {option.priceModifier && option.priceModifier > 0 && (
-                          <span className="text-sm text-green-600">
-                            +${option.priceModifier}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Color Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  {product.variants.color.name}
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {product.variants.color.options.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleVariantChange("color", option.value)}
-                      className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
-                        selectedVariants.color === option.value
-                          ? "border-gray-900 bg-gray-50"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-3">
-                          {option.colorCode && (
-                            <div
-                              className="w-4 h-4 rounded-full border border-gray-300"
-                              style={{ backgroundColor: option.colorCode }}
-                            />
-                          )}
+              {displayProduct.variants.size.options.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    {displayProduct.variants.size.name}
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {displayProduct.variants.size.options.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() =>
+                          handleVariantChange("size", option.value)
+                        }
+                        className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
+                          selectedVariants.size === option.value
+                            ? "border-gray-900 bg-gray-50"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-900">
                             {option.label}
                           </span>
+                          {/* {option.priceModifier && option.priceModifier > 0 && (
+                            <span className="text-sm text-green-600">
+                              +${option.priceModifier}
+                            </span>
+                          )} */}
                         </div>
-                        {option.priceModifier && option.priceModifier > 0 && (
-                          <span className="text-sm text-green-600">
-                            +${option.priceModifier}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Finish Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  {product.variants.finish.name}
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {product.variants.finish.options.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() =>
-                        handleVariantChange("finish", option.value)
-                      }
-                      className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
-                        selectedVariants.finish === option.value
-                          ? "border-gray-900 bg-gray-50"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-900">
-                          {option.label}
-                        </span>
-                        {option.priceModifier && option.priceModifier > 0 && (
-                          <span className="text-sm text-green-600">
-                            +${option.priceModifier}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+              {/* Color Selection - UI hidden (logic kept) */}
+              {/* {displayProduct.variants.color.options.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    {displayProduct.variants.color.name}
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {displayProduct.variants.color.options.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => handleVariantChange("color", option.value)}
+                        className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
+                          selectedVariants.color === option.value
+                            ? "border-gray-900 bg-gray-50"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center space-x-3">
+                            {option.colorCode && (
+                              <div
+                                className="w-4 h-4 rounded-full border border-gray-300"
+                                style={{ backgroundColor: option.colorCode }}
+                              />
+                            )}
+                            <span className="text-sm text-gray-900">
+                              {option.label}
+                            </span>
+                          </div>
+                          {option.priceModifier && option.priceModifier > 0 && (
+                            <span className="text-sm text-green-600">
+                              +${option.priceModifier}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )} */}
+
+              {/* Material Selection (renamed from Finish) - UI hidden (logic kept) */}
+              {/* {displayProduct.variants.finish.options.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    {displayProduct.variants.finish.name}
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {displayProduct.variants.finish.options.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() =>
+                          handleVariantChange("finish", option.value)
+                        }
+                        className={`text-left p-3 border border-gray-300 hover:border-gray-400 transition-all ${
+                          selectedVariants.finish === option.value
+                            ? "border-gray-900 bg-gray-50"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-900">
+                            {option.label}
+                          </span>
+                          {option.priceModifier && option.priceModifier > 0 && (
+                            <span className="text-sm text-green-600">
+                              +${option.priceModifier}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )} */}
             </div>
 
             {/* Stock Information Table */}
-            <div className="border border-gray-200">
+            {/* <div className="border border-gray-200">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
@@ -398,7 +495,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                   </tr>
                 </thead>
                 <tbody className="bg-white">
-                  {product.stockInfo.map((info, index) => (
+                  {displayProduct.stockInfo.map((info, index) => (
                     <tr key={index} className="border-t border-gray-200">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {info.location}
@@ -413,7 +510,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div> */}
 
             {/* Quantity Selector */}
             <div className="flex items-center space-x-4 mb-6">
@@ -440,49 +537,69 @@ export default function ProductPage({ params }: ProductPageProps) {
               </div>
             </div>
 
-            {/* Add to Cart Button */}
-            <button
-              onClick={() => {
-                // Get selected variant details for display
-                const selectedSizeOption = product.variants.size.options.find(
-                  (option) => option.value === selectedVariants.size
-                );
-                const selectedColorOption = product.variants.color.options.find(
-                  (option) => option.value === selectedVariants.color
-                );
-                const selectedFinishOption =
-                  product.variants.finish.options.find(
-                    (option) => option.value === selectedVariants.finish
+            {/* Action Buttons */}
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  // Get selected variant details for display
+                  const selectedSizeOption =
+                    displayProduct.variants.size.options.find(
+                      (option) => option.value === selectedVariants.size
+                    );
+                  const selectedColorOption =
+                    displayProduct.variants.color.options.find(
+                      (option) => option.value === selectedVariants.color
+                    );
+                  const selectedFinishOption =
+                    displayProduct.variants.finish.options.find(
+                      (option) => option.value === selectedVariants.finish
+                    );
+
+                  const variantDescription = [
+                    selectedSizeOption?.label,
+                    selectedColorOption?.label,
+                    selectedFinishOption?.label,
+                  ]
+                    .filter(Boolean)
+                    .join(", ");
+
+                  addToCart(
+                    {
+                      id: displayProduct.id, // Original MongoDB ObjectId for backend lookup
+                      cartId: `${displayProduct.id}-${selectedVariants.size}-${selectedVariants.color}-${selectedVariants.finish}`, // Unique cart identifier
+                      name: `${displayProduct.name}${
+                        variantDescription ? ` (${variantDescription})` : ""
+                      }`,
+                      image: displayImages[0] || "/placeholder-image.jpg",
+                      price: calculateTotalPrice(),
+                      sku: displayProduct.sku,
+                      category: displayProduct.category,
+                      availability: displayProduct.availability,
+                      variant_id: matchingVariant?._id, // MongoDB ObjectId of the variant
+                      variant_sku: matchingVariant?.sku, // SKU of the variant
+                      variants: {
+                        size: selectedVariants.size,
+                        color: selectedVariants.color,
+                        finish: selectedVariants.finish,
+                      },
+                    },
+                    quantity
                   );
+                  setShowAddedMessage(true);
+                  setTimeout(() => setShowAddedMessage(false), 3000);
+                }}
+                className="flex-1 bg-gray-900 text-white py-4 px-8 font-medium tracking-wider hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Add to Cart
+              </button>
 
-                const variantDescription = [
-                  selectedSizeOption?.label,
-                  selectedColorOption?.label,
-                  selectedFinishOption?.label,
-                ].join(", ");
-
-                addToCart(
-                  {
-                    id: `${product.id}-${selectedVariants.size}-${selectedVariants.color}-${selectedVariants.finish}`,
-                    name: `${product.name} (${variantDescription})`,
-                    image: product.images[0],
-                    price: calculateTotalPrice(),
-                    sku: product.sku,
-                    category: product.category,
-                    availability: product.availability,
-                  },
-                  quantity
-                );
-                setShowAddedMessage(true);
-                setTimeout(() => setShowAddedMessage(false), 3000);
-              }}
-              className="w-full bg-gray-900 text-white py-4 px-8 font-medium tracking-wider hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              disabled={product.availability === "out-of-stock"}
-            >
-              {product.availability === "out-of-stock"
-                ? "Out of Stock"
-                : "Add to Cart"}
-            </button>
+              <a
+                href="mailto:info@palacioshomeco.com"
+                className="flex-1 bg-gray-900 text-white py-4 px-8 font-medium tracking-wider hover:bg-gray-800 transition-colors text-center"
+              >
+                Contact us to order
+              </a>
+            </div>
 
             {/* Added to Cart Message */}
             {showAddedMessage && (
@@ -496,9 +613,9 @@ export default function ProductPage({ params }: ProductPageProps) {
               <div className="text-2xl font-light text-gray-900">
                 ${calculateTotalPrice().toLocaleString()}
               </div>
-              {calculateTotalPrice() !== product.price && (
+              {calculateTotalPrice() !== displayProduct.price && (
                 <div className="text-sm text-gray-500 mt-1">
-                  Base price: ${product.price.toLocaleString()}
+                  Base price: ${displayProduct.price.toLocaleString()}
                 </div>
               )}
               <p className="text-sm text-gray-500 mt-1">
@@ -506,17 +623,211 @@ export default function ProductPage({ params }: ProductPageProps) {
               </p>
             </div>
 
+            {/* Product Description & Details Tabs */}
+            {(displayProduct.description ||
+              (matchingVariant?.otherDetails &&
+                Object.keys(matchingVariant.otherDetails).length > 0)) && (
+              <div className="border-t border-gray-200 pt-8">
+                {/* Tab Navigation */}
+                <div className="flex border-b border-gray-200 mb-6">
+                  <button
+                    onClick={() => setActiveTab("description")}
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                      activeTab === "description"
+                        ? "text-gray-900"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Description
+                    {activeTab === "description" && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900"></div>
+                    )}
+                  </button>
+                  {matchingVariant?.otherDetails &&
+                    Object.keys(matchingVariant.otherDetails).length > 0 && (
+                      <button
+                        onClick={() => setActiveTab("details")}
+                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                          activeTab === "details"
+                            ? "text-gray-900"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        Additional Details
+                        {activeTab === "details" && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900"></div>
+                        )}
+                      </button>
+                    )}
+                </div>
+
+                {/* Tab Content */}
+                {activeTab === "description" && displayProduct.description && (
+                  <div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {displayProduct.description}
+                    </p>
+                  </div>
+                )}
+
+                {activeTab === "details" && matchingVariant?.otherDetails && (
+                  <div>
+                    <dl className="grid grid-cols-1 gap-y-3">
+                      {Object.entries(matchingVariant.otherDetails).map(
+                        ([key, value]) => (
+                          <div key={key} className="flex items-start gap-4">
+                            <dt className="text-sm font-medium text-gray-900 whitespace-nowrap min-w-[15rem]">
+                              {key}
+                            </dt>
+                            <dd className="text-sm text-gray-600">
+                              {String(value)}
+                            </dd>
+                          </div>
+                        )
+                      )}
+                    </dl>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Product Note */}
-            {product.note && (
+            {displayProduct.note && (
               <div className="border-t border-gray-200 pt-8">
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  <strong>Note:</strong> {product.note}
+                  <strong>Note:</strong> {displayProduct.note}
                 </p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Image Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={closeModal}
+        >
+          {/* Close Button */}
+          <button
+            onClick={closeModal}
+            className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="h-6 w-6 text-white" />
+          </button>
+
+          {/* Image Counter */}
+          <div className="absolute top-4 left-4 z-50 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+            <span className="text-white text-sm font-medium">
+              {modalImageIndex + 1} / {displayImages.length}
+            </span>
+          </div>
+
+          {/* Zoom Toggle Button - Hidden on mobile */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleZoom();
+            }}
+            className="hidden md:block absolute top-4 left-1/2 transform -translate-x-1/2 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+            aria-label={isZoomEnabled ? "Disable zoom" : "Enable zoom"}
+            title={isZoomEnabled ? "Disable zoom" : "Enable zoom"}
+          >
+            {isZoomEnabled ? (
+              <ZoomOut className="h-6 w-6 text-white" />
+            ) : (
+              <ZoomIn className="h-6 w-6 text-white" />
+            )}
+          </button>
+
+          {/* Previous Button */}
+          {displayImages.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToPrevImage();
+              }}
+              className="absolute left-4 z-50 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="h-8 w-8 text-white" />
+            </button>
+          )}
+
+          {/* Image Container */}
+          <div
+            className="relative w-full h-full max-w-7xl max-h-[90vh] mx-auto px-4 md:px-20"
+            onClick={(e) => e.stopPropagation()}
+            onMouseMove={handleMouseMove}
+            style={{ cursor: isZoomEnabled ? "zoom-in" : "default" }}
+          >
+            <div className="relative w-full h-full overflow-hidden">
+              <Image
+                src={displayImages[modalImageIndex] || "/placeholder-image.jpg"}
+                alt={`${displayProduct.name} - Image ${modalImageIndex + 1}`}
+                fill
+                className="object-contain transition-transform duration-100"
+                sizes="100vw"
+                priority
+                style={
+                  isZoomEnabled
+                    ? {
+                        transform: "scale(2)",
+                        transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                      }
+                    : undefined
+                }
+              />
+            </div>
+          </div>
+
+          {/* Next Button */}
+          {displayImages.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToNextImage();
+              }}
+              className="absolute right-4 z-50 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+              aria-label="Next image"
+            >
+              <ChevronRight className="h-8 w-8 text-white" />
+            </button>
+          )}
+
+          {/* Thumbnail Navigation */}
+          {displayImages.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 max-w-4xl">
+              <div className="flex gap-2 overflow-x-auto px-4 py-2 bg-white/10 backdrop-blur-sm rounded-lg">
+                {displayImages.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalImageIndex(index);
+                    }}
+                    className={`flex-shrink-0 w-16 h-16 relative border-2 transition-all ${
+                      modalImageIndex === index
+                        ? "border-white scale-110"
+                        : "border-white/30 hover:border-white/60"
+                    }`}
+                  >
+                    <Image
+                      src={image}
+                      alt={`Thumbnail ${index + 1}`}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </main>
   );
 }
