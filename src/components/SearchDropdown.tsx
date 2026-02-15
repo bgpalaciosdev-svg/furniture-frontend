@@ -91,7 +91,13 @@ interface SearchResultItemProps {
 const SearchResultItem = ({ product, onClose }: SearchResultItemProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const primaryImage =
-    product.images?.find((img) => img.is_primary) || product.images?.[0];
+    product.variants[0]?.images?.find((img: any) => img.is_primary) || product.variants[0]?.images?.[0];
+
+  const firstVariant = product.variants?.[0];
+  const displayPrice =
+    firstVariant?.price !== undefined ? firstVariant.price : product.price;
+  const displayStock =
+    firstVariant?.stock !== undefined ? firstVariant.stock : product.stock;
 
   return (
     <Link
@@ -133,9 +139,9 @@ const SearchResultItem = ({ product, onClose }: SearchResultItemProps) => {
         <p className="text-xs text-gray-500 mt-0.5">SKU: {product.sku}</p>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-sm font-medium text-gray-900">
-            ${product.price.toLocaleString()}
+            ${displayPrice.toLocaleString()}
           </span>
-          {product.stock !== undefined && product.stock > 0 ? (
+          {displayStock !== undefined && displayStock > 0 ? (
             <span className="text-xs text-green-600">In Stock</span>
           ) : (
             <span className="text-xs text-red-600">Out of Stock</span>
