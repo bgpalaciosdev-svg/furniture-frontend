@@ -41,8 +41,8 @@ const Navbar = () => {
   );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchDropdownRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const desktopSearchAreaRef = useRef<HTMLDivElement>(null);
+  const mobileSearchAreaRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const categoryMegaMenuRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +103,7 @@ const Navbar = () => {
       navigateToSearchResults();
     } else if (e.key === "Escape") {
       setShowSearchDropdown(false);
-      searchInputRef.current?.blur();
+      e.currentTarget.blur();
     }
   };
 
@@ -164,12 +164,13 @@ const Navbar = () => {
       ) {
         setShowAdminDropdown(false);
       }
-      if (
-        searchDropdownRef.current &&
-        !searchDropdownRef.current.contains(event.target as Node) &&
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target as Node)
-      ) {
+
+      const targetNode = event.target as Node;
+      const clickedInSearchArea =
+        (desktopSearchAreaRef.current?.contains(targetNode) ?? false) ||
+        (mobileSearchAreaRef.current?.contains(targetNode) ?? false);
+
+      if (!clickedInSearchArea) {
         setShowSearchDropdown(false);
       }
       if (
@@ -242,7 +243,7 @@ const Navbar = () => {
           </div>
 
           {/* Desktop: Expandable Search Bar */}
-          <div className="hidden lg:flex items-center" ref={searchDropdownRef}>
+          <div className="hidden lg:flex items-center" ref={desktopSearchAreaRef}>
             <div
               className={`relative transition-all duration-300 ${
                 searchQuery ? "w-[500px]" : "w-96"
@@ -252,7 +253,6 @@ const Navbar = () => {
                 <Search className="h-5 w-5 text-gray-400" />
               </div>
               <input
-                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={handleSearchInputChange}
@@ -526,12 +526,11 @@ const Navbar = () => {
       {/* Mobile: Secondary Navigation with Search */}
       <div className="lg:hidden bg-gray-50 border-t border-gray-200">
         <div className="px-4 py-3">
-          <div className="relative" ref={searchDropdownRef}>
+          <div className="relative" ref={mobileSearchAreaRef}>
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
             </div>
             <input
-              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={handleSearchInputChange}
