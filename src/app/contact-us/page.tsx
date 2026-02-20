@@ -3,7 +3,11 @@
 import { useState, FormEvent } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import ContactService from "@/services/contact.service";
-import { formatPhoneNumber, extractPhoneDigits, isValidPhoneNumber } from "@/lib/phone-utils";
+import {
+  formatPhoneNumber,
+  extractPhoneDigits,
+  isValidPhoneNumber,
+} from "@/lib/phone-utils";
 
 export default function ContactUs() {
   const { success, error } = useToast();
@@ -18,20 +22,20 @@ export default function ContactUs() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     // Validate phone number
     if (!isValidPhoneNumber(formData.phone)) {
       error("Invalid Phone Number", "Phone number must be exactly 10 digits");
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
       await ContactService.submitContactForm(formData);
       success(
         "Message Sent",
-        "Thank you for contacting us. We'll get back to you soon!"
+        "Thank you for contacting us. We'll get back to you soon!",
       );
       // Reset form
       setFormData({
@@ -53,7 +57,7 @@ export default function ContactUs() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     // For phone field, extract only digits and limit to 10
@@ -87,7 +91,7 @@ export default function ContactUs() {
               <p className="text-lg text-gray-700">
                 Palacios Home Co
                 <br />
-                Los Angeles, CA
+                500 W 7th St, Los Angeles, CA 90014
               </p>
             </div>
 
@@ -96,7 +100,7 @@ export default function ContactUs() {
                 📞 Call or Text
               </h2>
               <a
-                href="tel:(323)618-4663"
+                href="tel:3236184663"
                 className="text-lg text-gray-700 hover:text-gray-900 transition-colors"
               >
                 (323) 618-4663
@@ -146,10 +150,10 @@ export default function ContactUs() {
           <div className="text-center mb-8 space-y-2">
             <p className="text-gray-700 font-medium">Corporate Headquarters</p>
             <a
-              href="tel:(323)266-8993"
+              href="tel:323618-4663"
               className="text-gray-700 hover:text-gray-900 transition-colors block"
             >
-              (323) 266-8993
+              (323) 618-4663
             </a>
             <p className="text-gray-600 text-sm">Mon-Friday, 8AM-5PM PST</p>
           </div>
