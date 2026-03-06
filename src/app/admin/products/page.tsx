@@ -158,7 +158,7 @@ export default function ProductsPage() {
   const queryParams = useMemo((): ProductsQueryParams => {
     const params: ProductsQueryParams = {
       page: 1,
-      limit: 50, // Use backend pagination instead of client-side
+      limit: 1000, // Use backend pagination instead of client-side
     };
 
     if (searchTerm.trim()) {
