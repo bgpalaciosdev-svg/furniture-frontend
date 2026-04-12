@@ -185,7 +185,7 @@ const ChangePasswordPage = () => {
             href="/"
             className="text-3xl font-light tracking-wider text-gray-900 hover:text-gray-700 transition-colors"
           >
-            CLASSIC HOME
+            PALACIOS HOME
           </Link>
           <div className="mt-6 flex justify-center">
             <div className="bg-gray-900 p-3 rounded-full">
